@@ -4,6 +4,10 @@ require "socket"
 require "colorize"
 require "digest/md5"
 
+lib LibLLVM
+  fun LLVMDeleteFunction(fn : ValueRef)
+end
+
 module Crystal
   @[Flags]
   enum Debug
@@ -86,6 +90,12 @@ module Crystal
 
     # Sets the code model. Check LLVM docs to learn about this.
     property mcmodel = LLVM::CodeModel::Default
+
+    # Sets the code model. Check LLVM docs to learn about this.
+    property mcmodel = LLVM::CodeModel::Default
+
+    # If `true`, generates red zone. Check LLVM docs to learn about this.
+    property? generate_red_zone = true
 
     # If `true`, generates a single LLVM module. By default
     # one LLVM module is created for each type in a program.
@@ -204,6 +214,7 @@ module Crystal
       program.cache_dir = CacheDir.instance.directory_for(sources)
       program.codegen_target = codegen_target
       program.target_machine = target_machine
+      program.generate_red_zone = generate_red_zone?
       program.flags << "release" if release?
       program.flags << "debug" unless debug.none?
       program.flags << "static" if static?
@@ -309,13 +320,17 @@ module Crystal
 
       optimize llvm_mod if @release
 
-      if emit = @emit
-        unit.emit(emit, emit_base_filename || output_filename)
+      if !ENV["FREESTANDING"]?.nil?
+        LibLLVM.LLVMDeleteFunction llvm_mod.functions["__crystal_main"].to_unsafe
       end
 
-      target_machine.emit_obj_to_file llvm_mod, object_name
+      if emit = @emit
+        unit.emit(emit, emit_base_filename || output_filename)
+      else
+        target_machine.emit_obj_to_file llvm_mod, object_name
+      end
 
-      stdout.puts linker_command(program, object_name, output_filename, nil)
+      # stdout.puts linker_command(program, object_name, output_filename, nil)
     end
 
     private def linker_command(program : Program, object_name, output_filename, output_dir)

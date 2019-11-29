@@ -13,6 +13,8 @@ module Crystal
   MALLOC_ATOMIC_NAME  = "__crystal_malloc_atomic64"
   REALLOC_NAME        = "__crystal_realloc64"
   GET_EXCEPTION_NAME  = "__crystal_get_exception"
+  MALLOC_OFFSETS_NAME = "__crystal_malloc_type_offsets"
+  MALLOC_SIZE_NAME    = "__crystal_malloc_type_size"
   ONCE_INIT           = "__crystal_once_init"
   ONCE                = "__crystal_once"
 
@@ -167,6 +169,12 @@ module Crystal
     @main_builder : CrystalLLVMBuilder
     @call_location : Location?
 
+    @malloc_offset_fun : LLVM::Function
+    @malloc_size_fun : LLVM::Function
+    @malloc_types : Set(Type)
+
+    @generate_freestanding = false
+
     def initialize(@program : Program, @node : ASTNode, single_module = false, @debug = Debug::Default)
       @single_module = !!single_module
       @abi = @program.target_machine.abi
@@ -180,6 +188,10 @@ module Crystal
       @main_ret_type = node.type? || @program.nil_type
       ret_type = @llvm_typer.llvm_return_type(@main_ret_type)
       @main = @llvm_mod.functions.add(MAIN_NAME, [llvm_context.int32, llvm_context.void_pointer.pointer], ret_type)
+
+      @malloc_offset_fun = @llvm_mod.functions.add(MALLOC_OFFSETS_NAME, [llvm_context.int32], llvm_context.int32)
+      @malloc_size_fun = @llvm_mod.functions.add(MALLOC_SIZE_NAME, [llvm_context.int32], llvm_context.int32)
+      @malloc_types = Set(Type).new
 
       if @program.has_flag? "windows"
         @personality_name = "__CxxFrameHandler3"
@@ -246,7 +258,8 @@ module Crystal
       # to avoid some memory being allocated with plain malloc.
       codgen_well_known_functions @node
 
-      initialize_argv_and_argc
+      @generate_freestanding = ENV["FREESTANDING"]? == "1"
+      initialize_argv_and_argc unless @generate_freestanding
 
       if @debug.line_numbers?
         set_current_debug_location Location.new(@program.filename || "(no name)", 1, 1)
@@ -345,6 +358,88 @@ module Crystal
 
       @unused_fun_defs.each do |node|
         codegen_fun node.real_name, node.external, @program, is_exported_fun: true
+      end
+
+      # generate malloc types
+      # puts @malloc_types
+      in_main do
+        if (func = @malloc_offset_fun)
+          context.fun = func
+          context.fun.linkage = LLVM::Linkage::Internal
+
+          block = func.basic_blocks.append "entry"
+          position_at_end block
+
+          with_cloned_context do
+            arg = func.params[0]
+
+            current_block = insert_block
+
+            cases = {} of LLVM::Value => LLVM::BasicBlock
+            @malloc_types.each do |type|
+              block = new_block type.to_s
+
+              offsets = BitArray.new 32
+              unless type.packed?
+                ivars = type.all_instance_vars
+                struct_type = llvm_struct_type(type)
+                # puts "#{type} (#{type_id(type)})"
+                ivars.each_with_index do |(name, ivar), idx|
+                  if ivar.type.has_inner_pointers?
+                    offset = @program.instance_offset_of(type.sizeof_type, idx)
+                    bit = offset // (@program.codegen_target.pointer_bit_width // 8)
+                    offsets[bit] = true
+                    # puts " + #{name}, #{ivar.type}, #{offset}"
+                  else
+                    # puts " - #{name}, #{ivar.type}"
+                  end
+                end
+              end
+              # puts "offsets: #{offsets}"
+
+              position_at_end block
+              ret arg.type.const_int(offsets.to_slice.to_unsafe.as(UInt32*).value)
+
+              cases[type_id(type)] = block
+            end
+
+            otherwise = new_block "otherwise"
+            position_at_end otherwise
+            ret arg.type.const_int(0)
+
+            position_at_end current_block
+            builder.switch arg, otherwise, cases
+          end
+        end
+
+        if (func = @malloc_size_fun)
+          context.fun = func
+          context.fun.linkage = LLVM::Linkage::Internal
+
+          block = func.basic_blocks.append "entry"
+          position_at_end block
+
+          with_cloned_context do
+            arg = func.params[0]
+
+            current_block = insert_block
+
+            cases = {} of LLVM::Value => LLVM::BasicBlock
+            @malloc_types.each do |type|
+              block = new_block type.to_s
+              position_at_end block
+              ret arg.type.const_int(@program.instance_size_of(type))
+              cases[type_id(type)] = block
+            end
+
+            otherwise = new_block "otherwise"
+            position_at_end otherwise
+            ret arg.type.const_int(0)
+
+            position_at_end current_block
+            builder.switch arg, otherwise, cases
+          end
+        end
       end
 
       env_dump = ENV["DUMP"]?
@@ -1871,6 +1966,7 @@ module Crystal
       else
         if type.is_a?(InstanceVarContainer) && !type.struct? &&
            type.all_instance_vars.each_value.any? &.type.has_inner_pointers?
+          @malloc_types << type
           @last = malloc struct_type
         else
           @last = malloc_atomic struct_type

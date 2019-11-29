@@ -379,6 +379,26 @@ class Crystal::Command
                                raise "unreachable"
                              end
         end
+        opts.on("--mcmodel CPU", "Target specific code model") do |mcmodel|
+          compiler.mcmodel = case mcmodel
+            when "default"
+              LLVM::CodeModel::Default
+            when "small"
+              LLVM::CodeModel::Small
+            when "kernel"
+              LLVM::CodeModel::Kernel
+            when "medium"
+              LLVM::CodeModel::Medium
+            when "large"
+              LLVM::CodeModel::Large
+            else
+              error "--mcmodel should be one of: default, kernel, small, medium, large"
+              raise "unreachable"
+            end
+        end
+        opts.on("--mno-red-zone", "Disable generation of red zone") do 
+          compiler.generate_red_zone = false
+        end
         setup_compiler_warning_options(opts, compiler)
       end
 

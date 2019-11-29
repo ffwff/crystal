@@ -386,6 +386,15 @@ class Crystal::CodeGenVisitor
     context.fun.add_attribute LLVM::Attribute::ReturnsTwice if target_def.returns_twice?
     context.fun.add_attribute LLVM::Attribute::Naked if target_def.naked?
     context.fun.add_attribute LLVM::Attribute::NoReturn if target_def.no_returns?
+    context.fun.add_attribute LLVM::Attribute::StackRealign if target_def.stack_realign?
+
+    if target_def.weak?
+      context.fun.linkage = LLVM::Linkage::ExternalWeak     
+    end
+    
+    unless target_def.generate_red_zone?
+      context.fun.add_attribute LLVM::Attribute::NoRedZone
+    end
 
     if target_def.no_inline?
       context.fun.add_attribute LLVM::Attribute::NoInline

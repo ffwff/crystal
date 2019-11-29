@@ -144,6 +144,15 @@ module Crystal
     # `true` if this def has the `@[Naked]` annotation
     property? naked = false
 
+    # `true` if this def has the @[Weak]` annotation
+    property? weak = false
+
+    # `true` if this def has the @[StackRealign]` annotation
+    property? stack_realign = false
+
+    # `true` if program doesn't generate red zone
+    property? generate_red_zone = false
+
     # Is this a `new` method that was expanded from an initialize?
     property? new = false
 
@@ -220,6 +229,8 @@ module Crystal
       a_def.previous = previous
       a_def.raises = raises?
       a_def.no_inline = no_inline?
+      a_def.weak = weak?
+      a_def.stack_realign = stack_realign?
       a_def.always_inline = always_inline?
       a_def.returns_twice = returns_twice?
       a_def.naked = naked?
