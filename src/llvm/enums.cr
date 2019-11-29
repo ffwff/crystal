@@ -51,6 +51,7 @@ module LLVM
       StackProtect
       StackProtectReq
       StackProtectStrong
+      StackRealign
       StructRet
       SwiftError
       SwiftSelf
@@ -127,6 +128,7 @@ module LLVM
         kinds[StackProtect] = kind_for_name("ssp")
         kinds[StackProtectReq] = kind_for_name("sspreq")
         kinds[StackProtectStrong] = kind_for_name("sspstrong")
+        kinds[StackRealign] = kind_for_name("stackrealign")
         kinds[StructRet] = kind_for_name("sret")
         kinds[SwiftError] = kind_for_name("swifterror")
         kinds[SwiftSelf] = kind_for_name("swiftself")
