@@ -176,6 +176,7 @@ module Crystal
     @generate_freestanding = false
 
     def initialize(@program : Program, @node : ASTNode, single_module = false, @debug = Debug::Default)
+      @generate_freestanding = ENV["FREESTANDING"]? == "1"
       @single_module = !!single_module
       @abi = @program.target_machine.abi
       @llvm_context = LLVM::Context.new
@@ -187,11 +188,16 @@ module Crystal
       @main_llvm_typer = @llvm_typer
       @main_ret_type = node.type? || @program.nil_type
       ret_type = @llvm_typer.llvm_return_type(@main_ret_type)
+
       @main = @llvm_mod.functions.add(MAIN_NAME, [llvm_context.int32, llvm_context.void_pointer.pointer], ret_type)
+      if @generate_freestanding
+        @main.linkage = LLVM::Linkage::Private
+      end
 
       @malloc_offset_fun = @llvm_mod.functions.add(MALLOC_OFFSETS_NAME, [llvm_context.int32], llvm_context.int32)
       @malloc_size_fun = @llvm_mod.functions.add(MALLOC_SIZE_NAME, [llvm_context.int32], llvm_context.int32)
       @malloc_types = Set(Type).new
+      @gc_globals = Set(LLVM::Value).new
 
       if @program.has_flag? "windows"
         @personality_name = "__CxxFrameHandler3"
@@ -258,7 +264,6 @@ module Crystal
       # to avoid some memory being allocated with plain malloc.
       codgen_well_known_functions @node
 
-      @generate_freestanding = ENV["FREESTANDING"]? == "1"
       initialize_argv_and_argc unless @generate_freestanding
 
       if @debug.line_numbers?
@@ -360,6 +365,10 @@ module Crystal
         codegen_fun node.real_name, node.external, @program, is_exported_fun: true
       end
 
+      @gc_globals << llvm_context.void_pointer.pointer.null
+      gc_globals_sym = llvm_mod.globals.add llvm_context.void_pointer.array(@gc_globals.size), "__crystal_gc_globals"
+      gc_globals_sym.initializer = llvm_context.void_pointer.const_array(@gc_globals.to_a)
+
       # generate malloc types
       # puts @malloc_types
       in_main do
@@ -380,22 +389,26 @@ module Crystal
               block = new_block type.to_s
 
               offsets = BitArray.new 32
-              unless type.packed?
+              if !type.packed?
                 ivars = type.all_instance_vars
                 struct_type = llvm_struct_type(type)
                 # puts "#{type} (#{type_id(type)})"
                 ivars.each_with_index do |(name, ivar), idx|
                   if ivar.type.has_inner_pointers?
-                    offset = @program.instance_offset_of(type.sizeof_type, idx)
-                    bit = offset // (@program.codegen_target.pointer_bit_width // 8)
-                    offsets[bit] = true
-                    # puts " + #{name}, #{ivar.type}, #{offset}"
-                  else
-                    # puts " - #{name}, #{ivar.type}"
+                    if ivar.type.is_a?(MixedUnionType)
+                      offset = @program.instance_offset_of(type.sizeof_type, idx) +
+                        llvm_typer.offset_of(llvm_typer.llvm_type(ivar.type), 1)
+                      bit = offset // llvm_typer.pointer_size
+                      offsets[bit] = true
+                    else
+                      offset = @program.instance_offset_of(type.sizeof_type, idx)
+                      bit = offset // llvm_typer.pointer_size
+                      offsets[bit] = true
+                      # puts " + #{name}, #{ivar.type}, #{offset}"
+                    end
                   end
                 end
               end
-              # puts "offsets: #{offsets}"
 
               position_at_end block
               ret arg.type.const_int(offsets.to_slice.to_unsafe.as(UInt32*).value)

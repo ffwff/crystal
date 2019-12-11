@@ -48,8 +48,14 @@ class Crystal::CodeGenVisitor
 
   def declare_const(const)
     global_name = const.llvm_name
-    global = @main_mod.globals[global_name]? ||
-             @main_mod.globals.add(@main_llvm_typer.llvm_type(const.value.type), global_name)
+    global = @main_mod.globals[global_name]?
+
+    unless global
+      global = @main_mod.globals.add(@main_llvm_typer.llvm_type(const.value.type), global_name)
+      if const.value.type.has_inner_pointers?
+        @gc_globals << global
+      end
+    end
 
     type = const.value.type
     # TODO: there's an LLVM bug that prevents us from having internal globals of type i128 or u128:

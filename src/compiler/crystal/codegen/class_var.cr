@@ -12,6 +12,9 @@ class Crystal::CodeGenVisitor
     unless global
       main_llvm_type = @main_llvm_typer.llvm_type(class_var.type)
       global = @main_mod.globals.add(main_llvm_type, global_name)
+      if class_var.type.has_inner_pointers?
+        @gc_globals << global
+      end
       global.linkage = LLVM::Linkage::Internal if @single_module
       global.thread_local = true if class_var.thread_local?
       if !global.initializer && type.includes_type?(@program.nil_type)

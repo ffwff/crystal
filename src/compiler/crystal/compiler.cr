@@ -4,10 +4,6 @@ require "socket"
 require "colorize"
 require "digest/md5"
 
-lib LibLLVM
-  fun LLVMDeleteFunction(fn : ValueRef)
-end
-
 module Crystal
   @[Flags]
   enum Debug
@@ -319,10 +315,6 @@ module Crystal
       object_name = "#{output_filename}.o"
 
       optimize llvm_mod if @release
-
-      if !ENV["FREESTANDING"]?.nil?
-        LibLLVM.LLVMDeleteFunction llvm_mod.functions["__crystal_main"].to_unsafe
-      end
 
       if emit = @emit
         unit.emit(emit, emit_base_filename || output_filename)
