@@ -17,6 +17,7 @@ module Crystal
   MALLOC_SIZE_NAME    = "__crystal_malloc_type_size"
   ONCE_INIT           = "__crystal_once_init"
   ONCE                = "__crystal_once"
+  GC_GLOBALS_NAME     = "__crystal_gc_globals"
 
   class Program
     def run(code, filename = nil, debug = Debug::Default)
@@ -366,8 +367,12 @@ module Crystal
       end
 
       @gc_globals << llvm_context.void_pointer.pointer.null
-      gc_globals_sym = llvm_mod.globals.add llvm_context.void_pointer.array(@gc_globals.size), "__crystal_gc_globals"
-      gc_globals_sym.initializer = llvm_context.void_pointer.const_array(@gc_globals.to_a)
+      if gc_globals_ptr = llvm_mod.globals[GC_GLOBALS_NAME]?
+        gc_globals_sym = llvm_mod.globals.add llvm_context.void_pointer.array(@gc_globals.size), "__crystal_gc_globals_array"
+        gc_globals_sym.linkage = LLVM::Linkage::Internal
+        gc_globals_sym.initializer = llvm_context.void_pointer.const_array(@gc_globals.to_a)
+        gc_globals_ptr.initializer = bit_cast(gc_globals_sym, llvm_context.void_pointer.pointer)
+      end
 
       # generate malloc types
       # puts @malloc_types
