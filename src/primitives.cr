@@ -56,6 +56,11 @@ class Class
   @[Primitive(:class_crystal_instance_type_id)]
   def crystal_instance_type_id : Int32
   end
+
+  # :nodoc:
+  @[Primitive(:class_crystal_instance_min_type_id)]
+  def crystal_instance_min_type_id : Int32
+  end
 end
 
 struct Bool

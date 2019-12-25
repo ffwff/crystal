@@ -971,7 +971,7 @@ class Crystal::CodeGenVisitor
   end
 
   def codegen_primitive_class_crystal_instance_min_type_id(node, target_def, call_args)
-    type_id(context.type.instance_type)
+    min_type_id(context.type.instance_type)
   end
 
   def codegen_primitive_symbol_to_s(node, target_def, call_args)

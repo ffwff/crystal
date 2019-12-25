@@ -9,6 +9,10 @@ class Crystal::CodeGenVisitor
     type_id_impl(type.remove_indirection)
   end
 
+  def min_type_id(type)
+    int(@program.llvm_id.min_type_id(type))
+  end
+
   private def type_id_impl(value, type : NilableType)
     builder.select null_pointer?(value), type_id(@program.nil), type_id(type.not_nil_type)
   end

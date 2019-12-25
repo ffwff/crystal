@@ -209,7 +209,9 @@ module Crystal
       types["Struct"] = struct_t = @struct_t = NonGenericClassType.new self, self, "Struct", value
       abstract_value_type(struct_t)
 
-      types["Array"] = @array = GenericClassType.new self, self, "Array", reference, ["T"]
+      types["Markable"] = markable = @markable = NonGenericClassType.new self, self, "Markable", reference
+
+      types["Array"] = @array = GenericClassType.new self, self, "Array", markable, ["T"]
       types["Hash"] = @hash_type = GenericClassType.new self, self, "Hash", reference, ["K", "V"]
       types["Regex"] = @regex = NonGenericClassType.new self, self, "Regex", reference
       types["Range"] = range = @range = GenericClassType.new self, self, "Range", struct_t, ["B", "E"]
