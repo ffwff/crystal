@@ -174,10 +174,7 @@ module Crystal
     @malloc_size_fun : LLVM::Function
     @malloc_types : Set(Type)
 
-    @generate_freestanding = false
-
     def initialize(@program : Program, @node : ASTNode, single_module = false, @debug = Debug::Default)
-      @generate_freestanding = ENV["FREESTANDING"]? == "1"
       @single_module = !!single_module
       @abi = @program.target_machine.abi
       @llvm_context = LLVM::Context.new
@@ -191,7 +188,7 @@ module Crystal
       ret_type = @llvm_typer.llvm_return_type(@main_ret_type)
 
       @main = @llvm_mod.functions.add(MAIN_NAME, [llvm_context.int32, llvm_context.void_pointer.pointer], ret_type)
-      if @generate_freestanding
+      if @program.freestanding
         @main.linkage = LLVM::Linkage::Private
       end
 
@@ -265,7 +262,7 @@ module Crystal
       # to avoid some memory being allocated with plain malloc.
       codgen_well_known_functions @node
 
-      initialize_argv_and_argc unless @generate_freestanding
+      initialize_argv_and_argc unless @program.freestanding
 
       if @debug.line_numbers?
         set_current_debug_location Location.new(@program.filename || "(no name)", 1, 1)
@@ -394,7 +391,9 @@ module Crystal
               block = new_block type.to_s
 
               position_at_end block
-              ret arg.type.const_int(malloc_offsets(type, ENV["DUMP_GC"]?))
+              offsets = malloc_offsets(type, ENV["DUMP_GC"]?)
+              print "offset: ", offsets.to_s(2), '\n' if ENV["DUMP_GC"]?
+              ret arg.type.const_int(offsets)
 
               cases[type_id(type)] = block
             end

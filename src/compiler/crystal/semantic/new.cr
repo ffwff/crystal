@@ -212,8 +212,10 @@ module Crystal
       exps = Array(ASTNode).new(4)
       exps << assign
       exps << init
-      exps << If.new(RespondsTo.new(obj.clone, "finalize").at(self),
-        Call.new(Path.global("GC").at(self), "add_finalizer", obj.clone).at(self))
+      if instance_type.program.generate_finalizers
+        exps << If.new(RespondsTo.new(obj.clone, "finalize").at(self),
+          Call.new(Path.global("GC").at(self), "add_finalizer", obj.clone).at(self))
+      end
       exps << obj
 
       # Forward block argument if any

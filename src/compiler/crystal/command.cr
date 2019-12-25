@@ -399,6 +399,12 @@ class Crystal::Command
         opts.on("--mno-red-zone", "Disable generation of red zone") do 
           compiler.generate_red_zone = false
         end
+        opts.on("--no-finalizers", "Disable generation of finalizers") do 
+          compiler.generate_finalizers = false
+        end
+        opts.on("--freestanding", "Enables freestanding code compilation") do 
+          compiler.freestanding = true
+        end
         setup_compiler_warning_options(opts, compiler)
       end
 

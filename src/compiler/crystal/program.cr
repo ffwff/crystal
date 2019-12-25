@@ -120,6 +120,10 @@ module Crystal
 
     property generate_red_zone = false
 
+    property freestanding = false
+
+    property generate_finalizers = false
+
     # Which kind of warnings wants to be detected.
     property warnings : Warnings = Warnings::All
 

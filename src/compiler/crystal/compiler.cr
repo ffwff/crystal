@@ -93,6 +93,12 @@ module Crystal
     # If `true`, generates red zone. Check LLVM docs to learn about this.
     property? generate_red_zone = true
 
+    # If `true`, generates finalizers.
+    property? generate_finalizers = true
+
+    # If `true`, generates finalizers.
+    property? freestanding = false
+
     # If `true`, generates a single LLVM module. By default
     # one LLVM module is created for each type in a program.
     property? single_module = false
@@ -211,6 +217,7 @@ module Crystal
       program.codegen_target = codegen_target
       program.target_machine = target_machine
       program.generate_red_zone = generate_red_zone?
+      program.generate_finalizers = generate_finalizers?
       program.flags << "release" if release?
       program.flags << "debug" unless debug.none?
       program.flags << "static" if static?
