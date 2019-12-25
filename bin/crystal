@@ -141,7 +141,7 @@ CRYSTAL_DIR="$CRYSTAL_ROOT/.build"
 export CRYSTAL_PATH=$CRYSTAL_ROOT/src:lib
 export CRYSTAL_HAS_WRAPPER=true
 
-if [ -x "$CRYSTAL_DIR/crystal" ]; then
+if [ -x "$CRYSTAL_DIR/crystal" ] && false; then
   __warning_msg "Using compiled compiler at ${CRYSTAL_DIR#"$PWD/"}/crystal"
   exec "$CRYSTAL_DIR/crystal" "$@"
 elif ! command -v crystal > /dev/null; then
