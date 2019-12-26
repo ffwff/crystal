@@ -50,10 +50,6 @@ module Crystal
         id
       end
     end
-    
-    def min_type_id(type)
-      @ids[type][0]
-    end
 
     def min_max_type_id(type)
       @ids[type]?
