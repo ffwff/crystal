@@ -18,6 +18,7 @@ module Crystal
   ONCE_INIT           = "__crystal_once_init"
   ONCE                = "__crystal_once"
   GC_GLOBALS_NAME     = "__crystal_gc_globals"
+  IS_MARKABLE_NAME    = "__crystal_is_markable"
 
   class Program
     def run(code, filename = nil, debug = Debug::Default)
@@ -172,6 +173,7 @@ module Crystal
 
     @malloc_offset_fun : LLVM::Function
     @malloc_size_fun : LLVM::Function
+    @is_markable_fun : LLVM::Function
     @malloc_types : Set(Type)
 
     def initialize(@program : Program, @node : ASTNode, single_module = false, @debug = Debug::Default)
@@ -194,6 +196,7 @@ module Crystal
 
       @malloc_offset_fun = @llvm_mod.functions.add(MALLOC_OFFSETS_NAME, [llvm_context.int32], llvm_context.int32)
       @malloc_size_fun = @llvm_mod.functions.add(MALLOC_SIZE_NAME, [llvm_context.int32], llvm_context.int32)
+      @is_markable_fun = @llvm_mod.functions.add(IS_MARKABLE_NAME, [llvm_context.int32], llvm_context.int32)
       @malloc_types = Set(Type).new
       @gc_globals = Set(LLVM::Value).new
 
@@ -371,6 +374,7 @@ module Crystal
         gc_globals_ptr.initializer = bit_cast(gc_globals_sym, llvm_context.void_pointer.pointer.pointer)
       end
 
+
       # generate malloc types
       # puts @malloc_types
       in_main do
@@ -424,6 +428,35 @@ module Crystal
               block = new_block type.to_s
               position_at_end block
               ret arg.type.const_int(@program.instance_size_of(type))
+              cases[type_id(type)] = block
+            end
+
+            otherwise = new_block "otherwise"
+            position_at_end otherwise
+            ret arg.type.const_int(0)
+
+            position_at_end current_block
+            builder.switch arg, otherwise, cases
+          end
+        end
+
+        if (func = @is_markable_fun)
+          context.fun = func
+          context.fun.linkage = LLVM::Linkage::Internal
+
+          block = func.basic_blocks.append "entry"
+          position_at_end block
+
+          with_cloned_context do
+            arg = func.params[0]
+
+            current_block = insert_block
+
+            cases = {} of LLVM::Value => LLVM::BasicBlock
+            @program.markable.all_subclasses.each do |type|
+              block = new_block type.to_s
+              position_at_end block
+              ret arg.type.const_int(1)
               cases[type_id(type)] = block
             end
 
