@@ -194,7 +194,7 @@ module Crystal
         @main.linkage = LLVM::Linkage::Private
       end
 
-      @malloc_offset_fun = @llvm_mod.functions.add(MALLOC_OFFSETS_NAME, [llvm_context.int32], llvm_context.int32)
+      @malloc_offset_fun = @llvm_mod.functions.add(MALLOC_OFFSETS_NAME, [llvm_context.int32], llvm_context.int64)
       @malloc_size_fun = @llvm_mod.functions.add(MALLOC_SIZE_NAME, [llvm_context.int32], llvm_context.int32)
       @is_markable_fun = @llvm_mod.functions.add(IS_MARKABLE_NAME, [llvm_context.int32], llvm_context.int32)
       @malloc_types = Set(Type).new
@@ -397,14 +397,14 @@ module Crystal
               position_at_end block
               offsets = malloc_offsets(type, ENV["DUMP_GC"]?)
               print "offset: ", offsets.to_s(2), '\n' if ENV["DUMP_GC"]?
-              ret arg.type.const_int(offsets)
+              ret llvm_context.int64.const_int(offsets)
 
               cases[type_id(type)] = block
             end
 
             otherwise = new_block "otherwise"
             position_at_end otherwise
-            ret arg.type.const_int(0)
+            ret llvm_context.int64.const_int(0)
 
             position_at_end current_block
             builder.switch arg, otherwise, cases

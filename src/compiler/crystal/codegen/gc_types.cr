@@ -1,17 +1,17 @@
 module Crystal
   class CodeGenVisitor
   
-    def malloc_offsets(type : NilType, dump=false) : UInt32
-      0u32
+    def malloc_offsets(type : NilType, dump=false) : UInt64
+      0u64
     end
 
-    @offset_cache = {} of Crystal::Type => UInt32
+    @offset_cache = {} of Crystal::Type => UInt64
 
-    def malloc_offsets(type, dump=false) : UInt32
+    def malloc_offsets(type, dump=false) : UInt64
       if @offset_cache[type]?
         return @offset_cache[type]
       end
-      offsets = 0u32
+      offsets = 0u64
       ivars = type.all_instance_vars
       is_struct = type.struct?
       puts "#{type} (#{type_id(type)}) #{ivars.size}" if dump
@@ -60,7 +60,7 @@ module Crystal
               offset = @program.instance_offset_of(type.sizeof_type, idx)
             end
             bit = offset // llvm_typer.pointer_size
-            offsets |= (1u32 << bit.to_u32)
+            offsets |= (1u64 << bit.to_u64)
             puts " + #{name}, #{ivar.type}, #{offset}" if dump
           end
         else
