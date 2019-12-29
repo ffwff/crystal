@@ -217,6 +217,7 @@ module Crystal
       program.codegen_target = codegen_target
       program.target_machine = target_machine
       program.generate_red_zone = generate_red_zone?
+      program.freestanding = freestanding?
       program.generate_finalizers = generate_finalizers?
       program.flags << "release" if release?
       program.flags << "debug" unless debug.none?

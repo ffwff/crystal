@@ -150,6 +150,9 @@ module Crystal
     # `true` if this def has the @[StackRealign]` annotation
     property? stack_realign = false
 
+    # `true` if this def has the @[Internal]` annotation
+    property? internal = false
+
     # `true` if program doesn't generate red zone
     property? generate_red_zone = false
 
@@ -231,6 +234,7 @@ module Crystal
       a_def.no_inline = no_inline?
       a_def.weak = weak?
       a_def.stack_realign = stack_realign?
+      a_def.internal = internal?
       a_def.always_inline = always_inline?
       a_def.returns_twice = returns_twice?
       a_def.naked = naked?

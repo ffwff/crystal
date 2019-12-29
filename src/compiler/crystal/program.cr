@@ -252,6 +252,7 @@ module Crystal
       types["Deprecated"] = @deprecated_annotation = AnnotationType.new self, self, "Deprecated"
       types["Weak"] = @weak_annotation = AnnotationType.new self, self, "Weak"
       types["StackRealign"] = @stack_realign_annotation = AnnotationType.new self, self, "StackRealign"
+      types["Internal"] = @internal_annotation = AnnotationType.new self, self, "Internal"
 
       define_crystal_constants
     end
@@ -474,7 +475,7 @@ module Crystal
                      always_inline_annotation naked_annotation returns_twice_annotation
                      raises_annotation primitive_annotation call_convention_annotation
                      flags_annotation link_annotation extern_annotation deprecated_annotation
-                     weak_annotation stack_realign_annotation) %}
+                     weak_annotation stack_realign_annotation internal_annotation) %}
       def {{name.id}}
         @{{name.id}}.not_nil!
       end

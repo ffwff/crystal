@@ -136,7 +136,6 @@ module LLVM
         kinds[WillReturn] = kind_for_name("willreturn")
         kinds[WriteOnly] = kind_for_name("writeonly")
         kinds[ZExt] = kind_for_name("zeroext")
-        kinds[StackRealign] = kind_for_name("stackrealign")
         kinds
       end
 

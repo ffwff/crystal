@@ -191,7 +191,7 @@ module Crystal
 
       @main = @llvm_mod.functions.add(MAIN_NAME, [llvm_context.int32, llvm_context.void_pointer.pointer], ret_type)
       if @program.freestanding
-        @main.linkage = LLVM::Linkage::Private
+        @main.linkage = LLVM::Linkage::Internal
       end
 
       @malloc_offset_fun = @llvm_mod.functions.add(MALLOC_OFFSETS_NAME, [llvm_context.int32], llvm_context.int64)
