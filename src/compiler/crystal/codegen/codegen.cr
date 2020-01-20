@@ -10,11 +10,15 @@ module Crystal
   RAISE_NAME          = "__crystal_raise"
   RAISE_OVERFLOW_NAME = "__crystal_raise_overflow"
   MALLOC_NAME         = "__crystal_malloc64"
+  ARRAY_MALLOC_NAME   = "__crystal_array_malloc"
   MALLOC_ATOMIC_NAME  = "__crystal_malloc_atomic64"
   REALLOC_NAME        = "__crystal_realloc64"
   GET_EXCEPTION_NAME  = "__crystal_get_exception"
   ONCE_INIT           = "__crystal_once_init"
   ONCE                = "__crystal_once"
+  MALLOC_OFFSETS_NAME = "__crystal_malloc_type_offsets"
+  MALLOC_SIZE_NAME    = "__crystal_malloc_type_size"
+  GC_GLOBALS_NAME     = "__crystal_gc_globals"
 
   class Program
     def run(code, filename = nil, debug = Debug::Default)
@@ -154,6 +158,7 @@ module Crystal
     @rescue_block : LLVM::BasicBlock?
     @catch_pad : LLVM::Value?
     @malloc_fun : LLVM::Function?
+    @array_malloc_fun : LLVM::Function?
     @malloc_atomic_fun : LLVM::Function?
     @c_malloc_fun : LLVM::Function?
     @sret_value : LLVM::Value?
@@ -166,6 +171,10 @@ module Crystal
     @main_module_info : ModuleInfo
     @main_builder : CrystalLLVMBuilder
     @call_location : Location?
+
+    @malloc_offset_fun : LLVM::Function
+    @malloc_size_fun : LLVM::Function
+    @malloc_types : Set(Type)
 
     def initialize(@program : Program, @node : ASTNode, single_module = false, @debug = Debug::Default)
       @single_module = !!single_module
@@ -180,6 +189,11 @@ module Crystal
       @main_ret_type = node.type? || @program.nil_type
       ret_type = @llvm_typer.llvm_return_type(@main_ret_type)
       @main = @llvm_mod.functions.add(MAIN_NAME, [llvm_context.int32, llvm_context.void_pointer.pointer], ret_type)
+
+      @malloc_offset_fun = @llvm_mod.functions.add(MALLOC_OFFSETS_NAME, [llvm_context.int32], llvm_context.int64)
+      @malloc_size_fun = @llvm_mod.functions.add(MALLOC_SIZE_NAME, [llvm_context.int32], llvm_context.int32)
+      @malloc_types = Set(Type).new
+      @gc_globals = Set(LLVM::Value).new
 
       if @program.has_flag? "windows"
         @personality_name = "__CxxFrameHandler3"
@@ -345,6 +359,70 @@ module Crystal
 
       @unused_fun_defs.each do |node|
         codegen_fun node.real_name, node.external, @program, is_exported_fun: true
+      end
+
+      in_main do
+        if (func = @malloc_offset_fun)
+          context.fun = func
+          context.fun.linkage = LLVM::Linkage::Internal
+
+          block = func.basic_blocks.append "entry"
+          position_at_end block
+
+          with_cloned_context do
+            arg = func.params[0]
+
+            current_block = insert_block
+
+            cases = {} of LLVM::Value => LLVM::BasicBlock
+            @malloc_types.each do |type|
+              block = new_block type.to_s
+
+              position_at_end block
+              offsets = malloc_offsets(type, ENV["DUMP_GC"]?)
+              print "offset: ", offsets.to_s(2), '\n' if ENV["DUMP_GC"]?
+              ret llvm_context.int64.const_int(offsets)
+
+              cases[type_id(type)] = block
+            end
+
+            otherwise = new_block "otherwise"
+            position_at_end otherwise
+            ret llvm_context.int64.const_int(0)
+
+            position_at_end current_block
+            builder.switch arg, otherwise, cases
+          end
+        end
+
+        if (func = @malloc_size_fun)
+          context.fun = func
+          context.fun.linkage = LLVM::Linkage::Internal
+
+          block = func.basic_blocks.append "entry"
+          position_at_end block
+
+          with_cloned_context do
+            arg = func.params[0]
+
+            current_block = insert_block
+
+            cases = {} of LLVM::Value => LLVM::BasicBlock
+            @malloc_types.each do |type|
+              block = new_block type.to_s
+              position_at_end block
+              ret arg.type.const_int(@program.instance_size_of(type))
+              cases[type_id(type)] = block
+            end
+
+            otherwise = new_block "otherwise"
+            position_at_end otherwise
+            ret arg.type.const_int(0)
+
+            position_at_end current_block
+            builder.switch arg, otherwise, cases
+          end
+        end
       end
 
       env_dump = ENV["DUMP"]?
@@ -1035,6 +1113,9 @@ module Crystal
         ptr.thread_local = true if thread_local
 
         if @llvm_mod == @main_mod
+          if type.has_inner_pointers?
+            @gc_globals << ptr
+          end
           ptr.initializer = initial_value || llvm_type.null
         else
           ptr.linkage = LLVM::Linkage::External
@@ -1044,6 +1125,9 @@ module Crystal
           unless main_ptr
             main_llvm_type = @main_llvm_typer.llvm_type(type)
             main_ptr = @main_mod.globals.add(main_llvm_type, name)
+            if type.has_inner_pointers?
+              @gc_globals << main_ptr
+            end
             main_ptr.initializer = initial_value || main_llvm_type.null
             main_ptr.thread_local = true if thread_local
           end
@@ -1871,6 +1955,7 @@ module Crystal
       else
         if type.is_a?(InstanceVarContainer) && !type.struct? &&
            type.all_instance_vars.each_value.any? &.type.has_inner_pointers?
+          @malloc_types << type
           @last = malloc struct_type
         else
           @last = malloc_atomic struct_type
@@ -1953,7 +2038,7 @@ module Crystal
     end
 
     def array_malloc(type, count)
-      generic_array_malloc(type, count) { crystal_malloc_fun }
+      generic_array_malloc(type, count) { crystal_array_malloc_fun }
     end
 
     def array_malloc_atomic(type, count)
@@ -1977,6 +2062,15 @@ module Crystal
       @malloc_fun ||= @main_mod.functions[MALLOC_NAME]?
       if malloc_fun = @malloc_fun
         check_main_fun MALLOC_NAME, malloc_fun
+      else
+        nil
+      end
+    end
+
+    def crystal_array_malloc_fun
+      @array_malloc_fun ||= @main_mod.functions[ARRAY_MALLOC_NAME]?
+      if malloc_fun = @malloc_fun
+        check_main_fun ARRAY_MALLOC_NAME, malloc_fun
       else
         nil
       end
