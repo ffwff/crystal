@@ -122,7 +122,7 @@ module GC::Allocator::Small
       if @header.value.magic != Data::MAGIC &&
          @header.value.magic != Data::MAGIC_ATOMIC
         # Serial.print @header, '\n'
-        abort "magic pool number is overwritten!"
+        Small.abort "magic pool number is overwritten!"
       end
     end
 
@@ -368,16 +368,14 @@ module GC::Allocator::Small
     elsif bytes > MAX_POOL_SIZE
       return new_mmap(bytes, atomic)
     end
-    idx = pool_for_bytes bytes
+       idx = pool_for_bytes bytes
     # NOTE: atomic_pools/pools is passed on the stack
     pools = atomic ? @@atomic_pools.to_unsafe : @@pools.to_unsafe
     if pools[idx].null?
       pool = new_pool idx, atomic
-      # Serial.print "NEW: ", pool
       pool.get_free_block
     else
       pool = Pool.new pools[idx]
-      # Serial.print "OLD: ", pool
       pool.validate_header
       block = pool.get_free_block
       if pool.nfree == 0
@@ -508,5 +506,10 @@ module GC::Allocator::Small
   private def alloc_page(addr)
     @@pages_allocated += 1
     LibC.mprotect Pointer(Void).new(addr), 0x1000, LibC::PROT_READ | LibC::PROT_WRITE
+  end
+
+  protected def abort(msg = nil) : NoReturn
+    while true
+    end
   end
 end

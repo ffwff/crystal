@@ -1,7 +1,3 @@
-{% if flag?(:kernel) %}
-  require "../arch/paging.cr"
-{% end %}
-
 require "./allocator/*"
 
 module GC::Allocator

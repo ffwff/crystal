@@ -23,12 +23,11 @@ module GC
 
   # :nodoc:
   def self.malloc_atomic(size : LibC::SizeT)
-    Pointer(Void).new 0
+    Allocator.malloc(size, false)
   end
 
   # :nodoc:
   def self.realloc(ptr : Void*, size : LibC::SizeT)
-    {% if false %}
     if Allocator.resize ptr, size
       return ptr
     end
@@ -36,8 +35,6 @@ module GC
     newptr = Allocator.malloc(size)
     Intrinsics.memcpy(newptr, ptr, block_size, false)
     newptr
-    {% end %}
-    Pointer(Void).new 0
   end
 
   def self.collect

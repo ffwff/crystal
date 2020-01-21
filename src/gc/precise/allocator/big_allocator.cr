@@ -150,4 +150,7 @@ module GC::Allocator::Big
 
   private def dealloc_page(addr, npages = 1)
   end
+
+  protected def abort(msg = nil)
+  end
 end
