@@ -22,6 +22,10 @@ struct BitArray
   getter size : Int32
 
   # Creates a new `BitArray` of *size* bits.
+  def initialize(@bits : Pointer(UInt32), @size)
+  end
+
+  # Creates a new `BitArray` of *size* bits.
   #
   # *initial* optionally sets the starting value, `true` or `false`, for all bits
   # in the array.
@@ -243,6 +247,23 @@ struct BitArray
     hasher
   end
 
+  def clear
+    malloc_size.times do |i|
+      @bits[i] = 0u32
+    end
+  end
+
+  def first_unset
+    malloc_size.times do |i|
+      if @bits[i] != (~0).to_u32
+        k = i * 32 + @bits[i].trailing_zeros_count
+        return -1 if k > @size
+        return k
+      end
+    end
+    -1
+  end
+
   private def bit_index_and_sub_index(index)
     bit_index_and_sub_index(index) { raise IndexError.new }
   end
@@ -255,6 +276,10 @@ struct BitArray
   end
 
   private def malloc_size
-    (@size / 32.0).ceil.to_i
+    BitArray.malloc_size @size
+  end
+
+  def self.malloc_size(size)
+    (size / 32.0).ceil.to_i
   end
 end
