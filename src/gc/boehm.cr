@@ -39,6 +39,7 @@ lib LibGC
 
   fun init = GC_init
   fun malloc = GC_malloc(size : SizeT) : Void*
+  fun malloc_explicitly_typed = GC_malloc_explicitly_typed(size : SizeT, offsets : SizeT) : Void*
   fun malloc_atomic = GC_malloc_atomic(size : SizeT) : Void*
   fun realloc = GC_realloc(ptr : Void*, size : SizeT) : Void*
   fun free = GC_free(ptr : Void*)
@@ -100,6 +101,22 @@ lib LibGC
   $warn_proc = GC_current_warn_proc : WarnProc
 end
 
+{% if flag?(:gc_precise) %}
+  lib LibCrystal
+    fun type_offsets = "__crystal_malloc_type_offsets"(type_id : Int32) : UInt64
+  end
+
+  # :nodoc:
+  fun __crystal_malloc_precise64(size : UInt64, type_id : Int32) : Void*
+    GC.malloc_precise(LibC::SizeT.new(size), LibCrystal.type_offsets(type_id))
+  end
+{% else %}
+  # :nodoc:
+  fun __crystal_malloc_precise64(size : UInt64, type_id : Int32) : Void*
+    GC.malloc_precise(LibC::SizeT.new(size), 0)
+  end
+{% end %}
+
 module GC
   {% if flag?(:preview_mt) %}
     @@lock = Crystal::RWLock.new
@@ -111,7 +128,12 @@ module GC
   end
 
   # :nodoc:
-  def self.array_malloc(size : LibC::SizeT) : Void*
+  def self.malloc_precise(size : LibC::SizeT, offsets : UInt64) : Void*
+    LibGC.malloc_explicitly_typed(size, offsets)
+  end
+
+  # :nodoc:
+  def self.malloc_array(size : LibC::SizeT) : Void*
     LibGC.malloc(size)
   end
 

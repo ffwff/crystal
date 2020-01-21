@@ -4,6 +4,11 @@
   end
 {% end %}
 
+# :nodoc:
+fun __crystal_malloc_precise64(size : UInt64, type_id : Int32) : Void*
+  GC.malloc(LibC::SizeT.new(size))
+end
+
 module GC
   def self.init
   end
@@ -14,7 +19,7 @@ module GC
   end
 
   # :nodoc:
-  def self.array_malloc(size : LibC::SizeT)
+  def self.malloc_array(size : LibC::SizeT)
     LibC.malloc(size)
   end
 

@@ -10,7 +10,7 @@ module Crystal
   RAISE_NAME          = "__crystal_raise"
   RAISE_OVERFLOW_NAME = "__crystal_raise_overflow"
   MALLOC_NAME         = "__crystal_malloc64"
-  ARRAY_MALLOC_NAME   = "__crystal_array_malloc"
+  MALLOC_PRECISE_NAME = "__crystal_malloc_precise64"
   MALLOC_ATOMIC_NAME  = "__crystal_malloc_atomic64"
   REALLOC_NAME        = "__crystal_realloc64"
   GET_EXCEPTION_NAME  = "__crystal_get_exception"
@@ -158,7 +158,7 @@ module Crystal
     @rescue_block : LLVM::BasicBlock?
     @catch_pad : LLVM::Value?
     @malloc_fun : LLVM::Function?
-    @array_malloc_fun : LLVM::Function?
+    @malloc_precise_fun : LLVM::Function?
     @malloc_atomic_fun : LLVM::Function?
     @c_malloc_fun : LLVM::Function?
     @sret_value : LLVM::Value?
@@ -1956,7 +1956,7 @@ module Crystal
         if type.is_a?(InstanceVarContainer) && !type.struct? &&
            type.all_instance_vars.each_value.any? &.type.has_inner_pointers?
           @malloc_types << type
-          @last = malloc struct_type
+          @last = malloc_precise type
         else
           @last = malloc_atomic struct_type
         end
@@ -2017,6 +2017,19 @@ module Crystal
       end
     end
 
+    def malloc_precise(type)
+      struct_type = llvm_struct_type(type)
+      size = struct_type.size
+
+      if malloc_fun = crystal_malloc_precise_fun
+        pointer = call malloc_fun, [size, type_id(type)]
+      else
+        pointer = call_c_malloc size
+      end
+
+      bit_cast pointer, struct_type.pointer
+    end
+
     def malloc(type)
       generic_malloc(type) { crystal_malloc_fun }
     end
@@ -2038,7 +2051,7 @@ module Crystal
     end
 
     def array_malloc(type, count)
-      generic_array_malloc(type, count) { crystal_array_malloc_fun }
+      generic_array_malloc(type, count) { crystal_malloc_fun }
     end
 
     def array_malloc_atomic(type, count)
@@ -2058,19 +2071,19 @@ module Crystal
       bit_cast pointer, type.pointer
     end
 
-    def crystal_malloc_fun
-      @malloc_fun ||= @main_mod.functions[MALLOC_NAME]?
-      if malloc_fun = @malloc_fun
-        check_main_fun MALLOC_NAME, malloc_fun
+    def crystal_malloc_precise_fun
+      @malloc_precise_fun ||= @main_mod.functions[MALLOC_PRECISE_NAME]?
+      if malloc_fun = @malloc_precise_fun
+        check_main_fun MALLOC_PRECISE_NAME, malloc_fun
       else
         nil
       end
     end
 
-    def crystal_array_malloc_fun
-      @array_malloc_fun ||= @main_mod.functions[ARRAY_MALLOC_NAME]?
+    def crystal_malloc_fun
+      @malloc_fun ||= @main_mod.functions[MALLOC_NAME]?
       if malloc_fun = @malloc_fun
-        check_main_fun ARRAY_MALLOC_NAME, malloc_fun
+        check_main_fun MALLOC_NAME, malloc_fun
       else
         nil
       end

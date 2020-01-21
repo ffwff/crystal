@@ -4,11 +4,6 @@ fun __crystal_malloc(size : UInt32) : Void*
 end
 
 # :nodoc:
-fun __crystal_array_malloc(size : UInt32) : Void*
-  GC.array_malloc(LibC::SizeT.new(size))
-end
-
-# :nodoc:
 fun __crystal_malloc_atomic(size : UInt32) : Void*
   GC.malloc_atomic(LibC::SizeT.new(size))
 end
@@ -88,8 +83,6 @@ end
 
 {% if flag?(:gc_none) %}
   require "gc/none"
-{% elsif flag?(:gc_precise) %}
-  require "gc/precise"
 {% else %}
   require "gc/boehm"
 {% end %}
