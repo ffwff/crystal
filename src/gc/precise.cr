@@ -4,28 +4,40 @@
   end
 {% end %}
 
+require "./precise/allocator"
+
 module GC
   def self.init
+    Allocator.init
   end
 
   # :nodoc:
   def self.malloc(size : LibC::SizeT)
-    LibC.malloc(size)
+    Allocator.malloc(size)
   end
 
   # :nodoc:
   def self.array_malloc(size : LibC::SizeT)
-    LibC.malloc(size)
+    Allocator.malloc(size)
   end
 
   # :nodoc:
   def self.malloc_atomic(size : LibC::SizeT)
-    LibC.malloc(size)
+    Pointer(Void).new 0
   end
 
   # :nodoc:
-  def self.realloc(pointer : Void*, size : LibC::SizeT)
-    LibC.realloc(pointer, size)
+  def self.realloc(ptr : Void*, size : LibC::SizeT)
+    {% if false %}
+    if Allocator.resize ptr, size
+      return ptr
+    end
+    block_size = Allocator.block_size_for_ptr(ptr)
+    newptr = Allocator.malloc(size)
+    Intrinsics.memcpy(newptr, ptr, block_size, false)
+    newptr
+    {% end %}
+    Pointer(Void).new 0
   end
 
   def self.collect
