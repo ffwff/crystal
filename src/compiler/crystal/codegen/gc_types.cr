@@ -8,8 +8,11 @@ module Crystal
     @offset_cache = {} of Crystal::Type => UInt64
 
     def malloc_offsets(type, dump=false) : UInt64
-      if @offset_cache[type]?
-        return @offset_cache[type]
+      if offset = @offset_cache[type]?
+        return offset
+      end
+      unless type.has_inner_pointers?
+        return 0u64
       end
       offsets = 0u64
       ivars = type.all_instance_vars
@@ -20,8 +23,15 @@ module Crystal
           case ivar.type
           when MixedUnionType 
             utype = ivar.type.as(MixedUnionType)
-            uoffset = utype.union_types
-              .map{ |type| malloc_offsets(type, dump) }
+            uoffset = utype.union_types.map do |type| 
+              if type.struct?
+                malloc_offsets(type, dump)
+              elsif type.has_inner_pointers?
+                1u64
+              else
+                0u64
+              end
+            end
               .reduce(0) { |acc, i| acc | i }
             base_offset = @program.instance_offset_of(type.sizeof_type, idx) +
                      llvm_typer.offset_of(llvm_typer.llvm_type(ivar.type), 1)
@@ -30,7 +40,7 @@ module Crystal
             while uoffset != 0
               if (uoffset & 1) != 0
                 bit = base_bit + i
-                offsets |= (1u32 << bit.to_u32)
+                offsets |= (1u64 << bit.to_u64)
                 puts " + [mixed] #{name}, #{ivar.type}, #{bit*llvm_typer.pointer_size}" if dump
               else
                 bit = base_bit + i
@@ -55,7 +65,13 @@ module Crystal
             if is_struct
               base_offset = @program.offset_of(type.sizeof_type, idx)
             else
-              base_offset = @program.instance_offset_of(type.sizeof_type, idx)
+              begin
+                base_offset = @program.instance_offset_of(type.sizeof_type, idx)
+              rescue
+                # FIXME: this hack fixes Crystal::GenericType
+                @offset_cache[type] = 0u64
+                return 0u64
+              end
             end
             if soffset
               base_bit = base_offset // llvm_typer.pointer_size
@@ -63,7 +79,7 @@ module Crystal
               while soffset != 0
                 if (soffset & 1) != 0
                   bit = base_bit + i
-                  offsets |= (1u32 << bit.to_u32)
+                  offsets |= (1u64 << bit.to_u64)
                   puts " + [mixed] #{name}, #{ivar.type}, #{bit*llvm_typer.pointer_size}" if dump
                 else
                   bit = base_bit + i
