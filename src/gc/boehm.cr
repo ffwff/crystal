@@ -129,6 +129,9 @@ module GC
 
   # :nodoc:
   def self.malloc_precise(size : LibC::SizeT, offsets : UInt64) : Void*
+    if offsets == 0
+      raise "no offsets provided to malloc_precise"
+    end
     LibGC.malloc_explicitly_typed(size, offsets)
   end
 

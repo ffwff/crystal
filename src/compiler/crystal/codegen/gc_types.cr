@@ -36,7 +36,8 @@ module Crystal
 
       case type
       when ProcInstanceType, NilableProcType
-        return 0b11u64
+        # this marks closure data (second word of the proc pointer)
+        return 0b10u64
       when .struct?, .class?, .metaclass?
         type.all_instance_vars.each_with_index do |(name, ivar), idx|
           itype = ivar.type
@@ -46,7 +47,6 @@ module Crystal
                           @program.instance_offset_of(type.sizeof_type, idx)
                         end
           base_bit = (base_offset // psize).to_u64
-          # tabbed tab, " #{itype} => #{@program.size_of(itype)}"
           if itype.has_inner_pointers? && @program.size_of(itype) == psize
             offsets |= (1u64 << base_bit)
             tabbed tab, " + #{name}, #{ivar.type}, #{base_offset} (#{base_bit})"
