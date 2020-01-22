@@ -113,7 +113,7 @@ end
 {% else %}
   # :nodoc:
   fun __crystal_malloc_precise64(size : UInt64, type_id : Int32) : Void*
-    GC.malloc_precise(LibC::SizeT.new(size), 0)
+    GC.malloc(LibC::SizeT.new(size))
   end
 {% end %}
 

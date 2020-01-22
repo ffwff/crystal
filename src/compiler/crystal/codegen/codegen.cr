@@ -379,7 +379,7 @@ module Crystal
               block = new_block type.to_s
 
               position_at_end block
-              offsets = malloc_offsets(type, ENV["DUMP_GC"]?)
+              offsets = malloc_offsets(type, ENV["DUMP_GC"]? ? 0 : nil)
               print "bitmap for ", type, " => ", offsets.to_s(2), '\n' if ENV["DUMP_GC"]?
               ret llvm_context.int64.const_int(offsets)
 
