@@ -130,11 +130,6 @@ module GC
   # :nodoc:
   def self.malloc_precise(size : LibC::SizeT, offsets : UInt64) : Void*
     LibGC.malloc_explicitly_typed(size, offsets)
-  end 
-
-  # :nodoc:
-  def self.malloc_array(size : LibC::SizeT) : Void*
-    LibGC.malloc(size)
   end
 
   # :nodoc:

@@ -35,6 +35,8 @@ module Crystal
       tabbed tab, type
 
       case type
+      when ProcInstanceType, NilableProcType
+        return 0b11u64
       when .struct?, .class?, .metaclass?
         type.all_instance_vars.each_with_index do |(name, ivar), idx|
           itype = ivar.type
@@ -73,8 +75,6 @@ module Crystal
         data_base = llvm_typer.offset_of(llvm_typer.llvm_type(type), 1)
         data_bit = (data_base // psize).to_u64
         return offsets << data_bit
-      when ProcInstanceType
-        raise "unimplemented proc"
       else
         raise "Unhandled type in `kind`: #{type}"
       end

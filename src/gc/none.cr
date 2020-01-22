@@ -19,11 +19,6 @@ module GC
   end
 
   # :nodoc:
-  def self.malloc_array(size : LibC::SizeT)
-    LibC.malloc(size)
-  end
-
-  # :nodoc:
   def self.malloc_atomic(size : LibC::SizeT)
     LibC.malloc(size)
   end
