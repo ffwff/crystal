@@ -32,7 +32,7 @@ module Crystal
       offsets = 0u64
       psize = llvm_typer.pointer_size
 
-      tabbed tab, type
+      tabbed tab, "#{type} #{type_id(type)}"
 
       case type
       when ProcInstanceType, NilableProcType

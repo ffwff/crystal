@@ -39,7 +39,6 @@ lib LibGC
 
   fun init = GC_init
   fun malloc = GC_malloc(size : SizeT) : Void*
-  fun malloc_explicitly_typed = GC_malloc_explicitly_typed(size : SizeT, offsets : SizeT) : Void*
   fun malloc_atomic = GC_malloc_atomic(size : SizeT) : Void*
   fun realloc = GC_realloc(ptr : Void*, size : SizeT) : Void*
   fun free = GC_free(ptr : Void*)
@@ -50,6 +49,10 @@ lib LibGC
   fun disable = GC_disable
   fun is_disabled = GC_is_disabled : Int
   fun set_handle_fork = GC_set_handle_fork(value : Int)
+  
+  type Descriptor = Word
+  fun make_descriptor = GC_make_descriptor(bm : Word*, len : SizeT) : Descriptor
+  fun malloc_explicitly_typed = GC_malloc_explicitly_typed(size : SizeT, descriptor : Descriptor) : Void*
 
   fun base = GC_base(displaced_pointer : Void*) : Void*
   fun is_heap_ptr = GC_is_heap_ptr(pointer : Void*) : Int
@@ -113,9 +116,15 @@ end
 {% else %}
   # :nodoc:
   fun __crystal_malloc_precise64(size : UInt64, type_id : Int32) : Void*
-    GC.malloc(LibC::SizeT.new(size))
+    GC.malloc_precise(LibC::SizeT.new(size), 0u64)
   end
 {% end %}
+
+lib LibC
+  $stderr : Void*
+  fun fprintf(stream : Void*, str : UInt8*, ...) : LibC::Int
+  fun abort : NoReturn
+end
 
 module GC
   {% if flag?(:preview_mt) %}
@@ -129,10 +138,8 @@ module GC
 
   # :nodoc:
   def self.malloc_precise(size : LibC::SizeT, offsets : UInt64) : Void*
-    if offsets == 0
-      raise "no offsets provided to malloc_precise"
-    end
-    LibGC.malloc_explicitly_typed(size, offsets)
+    descriptor = LibGC.make_descriptor(pointerof(offsets), 64 - offsets.leading_zeros_count)
+    LibGC.malloc_explicitly_typed(size, descriptor)
   end
 
   # :nodoc:
