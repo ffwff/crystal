@@ -197,7 +197,6 @@ module Crystal
         hash[key] = @malloc_types_id
         @malloc_types_id += 1
       end
-      @gc_globals = Set(LLVM::Value).new
 
       @main = @llvm_mod.functions.add(MAIN_NAME, [llvm_context.int32, llvm_context.void_pointer.pointer], ret_type)
 
@@ -1124,9 +1123,6 @@ module Crystal
         ptr.thread_local = true if thread_local
 
         if @llvm_mod == @main_mod
-          if type.has_inner_pointers?
-            @gc_globals << ptr
-          end
           ptr.initializer = initial_value || llvm_type.null
         else
           ptr.linkage = LLVM::Linkage::External
@@ -1136,9 +1132,6 @@ module Crystal
           unless main_ptr
             main_llvm_type = @main_llvm_typer.llvm_type(type)
             main_ptr = @main_mod.globals.add(main_llvm_type, name)
-            if type.has_inner_pointers?
-              @gc_globals << main_ptr
-            end
             main_ptr.initializer = initial_value || main_llvm_type.null
             main_ptr.thread_local = true if thread_local
           end
