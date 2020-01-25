@@ -1,0 +1,1 @@
+unsigned long *__crystal_malloc_descriptors = 0;

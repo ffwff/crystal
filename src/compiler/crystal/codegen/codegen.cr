@@ -18,7 +18,7 @@ module Crystal
   ONCE                = "__crystal_once"
   MALLOC_OFFSETS_NAME = "__crystal_malloc_type_offsets"
   MALLOC_SIZE_NAME    = "__crystal_malloc_type_size"
-  GC_GLOBALS_NAME     = "__crystal_gc_globals"
+  TYPEDESC_SIZE_NAME  = "__crystal_typedesc_size"
 
   class Program
     def run(code, filename = nil, debug = Debug::Default)
@@ -172,9 +172,10 @@ module Crystal
     @main_builder : CrystalLLVMBuilder
     @call_location : Location?
 
+    @malloc_types : Hash(Type, Int32)
+    @malloc_types_id = 0
     @malloc_offset_fun : LLVM::Function
     @malloc_size_fun : LLVM::Function
-    @malloc_types : Set(Type)
 
     def initialize(@program : Program, @node : ASTNode, single_module = false, @debug = Debug::Default)
       @single_module = !!single_module
@@ -188,12 +189,17 @@ module Crystal
       @main_llvm_typer = @llvm_typer
       @main_ret_type = node.type? || @program.nil_type
       ret_type = @llvm_typer.llvm_return_type(@main_ret_type)
-      @main = @llvm_mod.functions.add(MAIN_NAME, [llvm_context.int32, llvm_context.void_pointer.pointer], ret_type)
 
+      @llvm_mod.globals.add @llvm_context.int32, TYPEDESC_SIZE_NAME
       @malloc_offset_fun = @llvm_mod.functions.add(MALLOC_OFFSETS_NAME, [llvm_context.int32], llvm_context.int64)
       @malloc_size_fun = @llvm_mod.functions.add(MALLOC_SIZE_NAME, [llvm_context.int32], llvm_context.int32)
-      @malloc_types = Set(Type).new
+      @malloc_types = Hash(Type, Int32).new do |hash, key|
+        hash[key] = @malloc_types_id
+        @malloc_types_id += 1
+      end
       @gc_globals = Set(LLVM::Value).new
+
+      @main = @llvm_mod.functions.add(MAIN_NAME, [llvm_context.int32, llvm_context.void_pointer.pointer], ret_type)
 
       if @program.has_flag? "windows"
         @personality_name = "__CxxFrameHandler3"
@@ -322,7 +328,7 @@ module Crystal
         case node.name
         when MALLOC_NAME, MALLOC_PRECISE_NAME, MALLOC_ATOMIC_NAME, REALLOC_NAME, RAISE_NAME,
              @codegen.personality_name, GET_EXCEPTION_NAME, RAISE_OVERFLOW_NAME,
-             ONCE_INIT, ONCE
+             ONCE_INIT, ONCE, TYPEDESC_SIZE_NAME, MALLOC_OFFSETS_NAME
           @codegen.accept node
         end
         false
@@ -361,7 +367,34 @@ module Crystal
         codegen_fun node.real_name, node.external, @program, is_exported_fun: true
       end
 
+      env_dump = ENV["DUMP"]?
+      case env_dump
+      when Nil
+        # Nothing
+      when "1"
+        dump_all_llvm = true
+      else
+        dump_llvm_regex = Regex.new(env_dump)
+      end
+
+      @modules.each do |name, info|
+        mod = info.mod
+        push_debug_info_metadata(mod) unless @debug.none?
+
+        mod.dump if dump_all_llvm || name =~ dump_llvm_regex
+
+        # Always run verifications so we can catch bugs earlier and more often.
+        # We can probably remove this, or only enable this when compiling in
+        # release mode, once we reach 1.0.
+        mod.verify
+      end
+
       in_main do
+        if typedesc_size = llvm_mod.globals[TYPEDESC_SIZE_NAME]?
+          # puts typedesc_size
+          typedesc_size.initializer = llvm_context.int32.const_int(@malloc_types_id)
+        end
+      
         if (func = @malloc_offset_fun)
           context.fun = func
           context.fun.linkage = LLVM::Linkage::Internal
@@ -375,7 +408,7 @@ module Crystal
             current_block = insert_block
 
             cases = {} of LLVM::Value => LLVM::BasicBlock
-            @malloc_types.each do |type|
+            @malloc_types.each do |type, descriptor|
               block = new_block type.to_s
 
               position_at_end block
@@ -383,7 +416,7 @@ module Crystal
               print "bitmap for ", type, " => ", offsets.to_s(2), '\n' if ENV["DUMP_GC"]?
               ret llvm_context.int64.const_int(offsets)
 
-              cases[type_id(type)] = block
+              cases[llvm_context.int32.const_int(descriptor)] = block
             end
 
             otherwise = new_block "otherwise"
@@ -408,11 +441,11 @@ module Crystal
             current_block = insert_block
 
             cases = {} of LLVM::Value => LLVM::BasicBlock
-            @malloc_types.each do |type|
+            @malloc_types.each do |type, descriptor|
               block = new_block type.to_s
               position_at_end block
               ret arg.type.const_int(@program.instance_size_of(type))
-              cases[type_id(type)] = block
+              cases[llvm_context.int32.const_int(descriptor)] = block
             end
 
             otherwise = new_block "otherwise"
@@ -423,28 +456,6 @@ module Crystal
             builder.switch arg, otherwise, cases
           end
         end
-      end
-
-      env_dump = ENV["DUMP"]?
-      case env_dump
-      when Nil
-        # Nothing
-      when "1"
-        dump_all_llvm = true
-      else
-        dump_llvm_regex = Regex.new(env_dump)
-      end
-
-      @modules.each do |name, info|
-        mod = info.mod
-        push_debug_info_metadata(mod) unless @debug.none?
-
-        mod.dump if dump_all_llvm || name =~ dump_llvm_regex
-
-        # Always run verifications so we can catch bugs earlier and more often.
-        # We can probably remove this, or only enable this when compiling in
-        # release mode, once we reach 1.0.
-        mod.verify
       end
     end
 
@@ -1955,8 +1966,7 @@ module Crystal
       else
         if type.is_a?(InstanceVarContainer) && !type.struct? &&
            type.all_instance_vars.each_value.any? &.type.has_inner_pointers?
-          @malloc_types << type
-          @last = malloc_precise type
+          @last = malloc_precise struct_type, @malloc_types[type]
         else
           @last = malloc_atomic struct_type
         end
@@ -2017,17 +2027,16 @@ module Crystal
       end
     end
 
-    def malloc_precise(type)
-      struct_type = llvm_struct_type(type)
-      size = struct_type.size
+    def malloc_precise(type, descriptor : Int32)
+      size = type.size
 
       if malloc_fun = crystal_malloc_precise_fun
-        pointer = call malloc_fun, [size, type_id(type)]
+        pointer = call malloc_fun, [size, llvm_context.int32.const_int(descriptor)]
       else
         pointer = call_c_malloc size
       end
 
-      bit_cast pointer, struct_type.pointer
+      bit_cast pointer, type.pointer
     end
 
     def malloc(type)
