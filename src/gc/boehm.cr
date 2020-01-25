@@ -157,7 +157,10 @@ module GC
       LibGC.set_handle_fork(1)
     {% end %}
     LibGC.init
-    __crystal_init_malloc_descriptors
+
+    {% if flag?(:gc_precise) %}
+      __crystal_init_malloc_descriptors
+    {% end %}
 
     LibGC.set_start_callback ->do
       GC.lock_write
