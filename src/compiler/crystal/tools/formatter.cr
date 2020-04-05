@@ -490,6 +490,8 @@ module Crystal
         when :DELIMITER_END
           heredoc_end = @line
           break
+        else
+          raise "Bug: unexpected token: #{@token.type}"
         end
       end
 
@@ -767,6 +769,8 @@ module Crystal
             write @token.raw
             next_token
             break
+          else
+            raise "Bug: unexpected token #{@token.type}"
           end
           count += 1
         end
@@ -3028,6 +3032,8 @@ module Crystal
         else
           clear_object(node.obj)
         end
+      else
+        # nothing to do
       end
     end
 
@@ -3189,9 +3195,18 @@ module Crystal
     end
 
     def visit(node : Not)
-      write_token :"!"
-      skip_space_or_newline
-      accept node.exp
+      if @token.type == :"!"
+        write_token :"!"
+        skip_space_or_newline
+        accept node.exp
+      else
+        # Can be `exp.!`
+        accept node.exp
+        skip_space_or_newline
+        write_token :"."
+        skip_space_or_newline
+        write_token :"!"
+      end
 
       false
     end
@@ -3281,6 +3296,8 @@ module Crystal
         write_keyword :private, " "
       when .protected?
         write_keyword :protected, " "
+      when .public?
+        # no keyword needed
       end
       accept node.exp
 
@@ -4051,7 +4068,9 @@ module Crystal
         end
       end
 
-      skip_space_or_newline
+      indent do
+        skip_space_or_newline
+      end
 
       if is_do
         check_end
@@ -4220,7 +4239,7 @@ module Crystal
       end
 
       # Mop up any trailing unused : or ::, don't write them since they should be removed
-      while {:":", :"::"}.includes? @token.type
+      while @token.type.in?(:":", :"::")
         next_token_skip_space_or_newline
       end
 

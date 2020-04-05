@@ -1,5 +1,7 @@
+{% skip_file if flag?(:win32) %}
+
 require "base64"
-require "../../web_socket"
+require "http/web_socket"
 
 {% if flag?(:without_openssl) %}
   require "digest/sha1"
@@ -38,9 +40,10 @@ class HTTP::WebSocketHandler
       response.headers["Connection"] = "Upgrade"
       response.headers["Sec-WebSocket-Accept"] = accept_code
       response.upgrade do |io|
-        ws_session = WebSocket.new(io)
+        ws_session = WebSocket.new(io, sync_close: false)
         @proc.call(ws_session, context)
         ws_session.run
+      ensure
         io.close
       end
     else

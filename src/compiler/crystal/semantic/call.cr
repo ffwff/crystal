@@ -43,6 +43,8 @@ class Crystal::Call
     when LibType
       # `LibFoo.call` has a separate logic
       return recalculate_lib_call obj_type
+    else
+      # Nothing
     end
 
     # Check if its call is inside LibFoo
@@ -293,7 +295,7 @@ class Crystal::Call
       # don't give error. This is to allow small code comments without giving
       # compile errors, which will anyway appear once you add concrete
       # subclasses and instances.
-      if def_name == "new" || !(!owner.metaclass? && owner.abstract? && (owner.leaf? || owner.is_a?(GenericClassInstanceType)))
+      if def_name == "new" || !(!owner.metaclass? && owner.abstract_leaf?)
         raise_matches_not_found(matches.owner || owner, def_name, arg_types, named_args_types, matches, with_literals: with_literals)
       end
     end
@@ -514,14 +516,9 @@ class Crystal::Call
   end
 
   def named_tuple_indexer_helper(args, arg_types, owner, instance_type, nilable)
-    arg = args.first
-
-    case arg
+    case arg = args.first
     when SymbolLiteral, StringLiteral
       name = arg.value
-    end
-
-    if name
       index = instance_type.name_index(name)
       if index || nilable
         indexer_def = yield instance_type, (index || -1)
@@ -530,8 +527,9 @@ class Crystal::Call
       else
         raise "missing key '#{name}' for named tuple #{owner}"
       end
+    else
+      nil
     end
-    nil
   end
 
   def replace_splats
@@ -699,6 +697,8 @@ class Crystal::Call
         return result
       when Type::DefInMacroLookup
         return nil
+      else
+        # Check next target
       end
     end
   end
@@ -978,7 +978,7 @@ class Crystal::Call
   end
 
   private def cant_infer_block_return_type
-    raise "can't infer block return type, try to cast the block body with `as`. See: https://github.com/crystal-lang/crystal/wiki/Compiler-error-messages#cant-infer-block-return-type"
+    raise "can't infer block return type, try to cast the block body with `as`. See: https://crystal-lang.org/reference/syntax_and_semantics/as.html#usage-for-when-the-compiler-cant-infer-the-type-of-a-block"
   end
 
   private def lookup_node_type(context, node)

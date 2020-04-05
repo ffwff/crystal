@@ -124,8 +124,10 @@ module Crystal
         io << '\n'
       end
 
-      io << error_headline(error_message_lines.shift)
-      io << remaining error_message_lines
+      unless error_message_lines.empty?
+        io << error_headline(error_message_lines.shift)
+        io << remaining error_message_lines
+      end
 
       if inner
         return if inner.is_a? MethodTraceException && !inner.has_message?
@@ -238,6 +240,8 @@ module Crystal
         io << "'self' was used before initializing instance variable '#{nil_reason.name}', rendering it nilable"
       when :initialized_in_rescue
         io << "Instance variable '#{nil_reason.name}' is initialized inside a begin-rescue, so it can potentially be left uninitialized if an exception is raised and rescued"
+      else
+        # TODO: we should probably change nil_reason to be an enum so we don't need this else branch
       end
     end
 

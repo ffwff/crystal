@@ -363,6 +363,8 @@ describe "BigInt" do
     big.to_u16!.should eq(722)
     big.to_u32.should eq(1234567890)
 
+    expect_raises(OverflowError) { BigInt.new(-1234567890).to_u }
+
     u64 = big.to_u64
     u64.should eq(1234567890)
     u64.should be_a(UInt64)
@@ -405,6 +407,10 @@ describe "BigInt" do
   describe "#humanize_bytes" do
     it { BigInt.new("1180591620717411303424").humanize_bytes.should eq("1.0ZiB") }
     it { BigInt.new("1208925819614629174706176").humanize_bytes.should eq("1.0YiB") }
+  end
+
+  it "has unsafe_shr (#8691)" do
+    BigInt.new(8).unsafe_shr(1).should eq(4)
   end
 end
 

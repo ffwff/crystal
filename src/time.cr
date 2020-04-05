@@ -649,7 +649,7 @@ struct Time
   # Positive values result in a later time, negative values in an earlier time.
   #
   # This operates on the local time-line, such that the local date-time
-  # represenation of the result will be apart by the specified amounts, but the
+  # representation of the result will be apart by the specified amounts, but the
   # elapsed time between both instances might not equal to the combined default
   # durations
   # This is the case for example when adding a day over a daylight-savings time
@@ -719,7 +719,8 @@ struct Time
       end
 
       seconds += Time.absolute_days(year, month, day).to_i64 * SECONDS_PER_DAY
-      seconds += offset_seconds % SECONDS_PER_DAY
+      seconds += @seconds % SECONDS_PER_DAY
+      seconds += offset
     end
 
     # FIXME: These operations currently don't have overflow checks applied.
@@ -907,7 +908,7 @@ struct Time
   # This is equivalent to creating a `Time::Span` from the time-of-day fields:
   #
   # ```
-  # time.time_of_day == Time::Span.new(time.hour, time.minute, time.second, time.nanosecond)
+  # time.time_of_day == Time::Span.new(hours: time.hour, minutes: time.minute, seconds: time.second, nanoseconds: time.nanosecond)
   # ```
   def time_of_day : Time::Span
     Span.new(nanoseconds: NANOSECONDS_PER_SECOND * (offset_seconds % SECONDS_PER_DAY) + nanosecond)
@@ -1494,6 +1495,8 @@ struct Time
         zone = location.lookup(range[0] - 1)
       when .>=(range[1])
         zone = location.lookup(range[1])
+      else
+        # in range
       end
     end
 

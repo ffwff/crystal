@@ -47,7 +47,7 @@ function crystal-windows-wsl {
 }
 
 if [ "$LINKER" == "crystal-windows-wsl" ] && [ -z "$MSVC_BUILD_TOOLS" ]; then
-  echo "Missing environemnt variable MSVC_BUILD_TOOLS" >&2
+  echo "Missing environment variable MSVC_BUILD_TOOLS" >&2
   exit 1
 fi
 
@@ -65,7 +65,7 @@ echo
 for spec in $(find "spec/$SPEC_SUITE" -type f -iname "*_spec.cr" | sort); do
   require="require \"./${spec##spec/}\""
 
-  if ! linker_command=$($CRYSTAL_BIN build --cross-compile --target x86_64--windows-msvc "$spec" 2>/dev/null); then
+  if ! linker_command=$($CRYSTAL_BIN build --cross-compile --target x86_64--windows-msvc -Dwithout_zlib -Dwithout_openssl "$spec" 2>/dev/null); then
     echo "# $require (failed codegen)"
     continue
   fi

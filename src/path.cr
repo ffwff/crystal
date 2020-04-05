@@ -98,12 +98,17 @@ struct Path
   end
 
   # :ditto:
-  def self.new(name : String, *parts) : Path
+  def self.new(path : Path) : Path
+    path.to_native
+  end
+
+  # :ditto:
+  def self.new(name : String | Path, *parts : String | Path) : Path
     new(name).join(*parts)
   end
 
   # :ditto:
-  def self.[](name : String, *parts) : Path
+  def self.[](name : String | Path, *parts) : Path
     new(name, *parts)
   end
 
@@ -123,7 +128,12 @@ struct Path
   end
 
   # :ditto:
-  def self.posix(name : String, *parts) : Path
+  def self.posix(path : Path) : Path
+    path.to_posix
+  end
+
+  # :ditto:
+  def self.posix(name : String | Path, *parts : String | Path) : Path
     posix(name).join(parts)
   end
 
@@ -138,7 +148,12 @@ struct Path
   end
 
   # :ditto:
-  def self.windows(name : String, *parts) : Path
+  def self.windows(path : Path) : Path
+    path.to_windows
+  end
+
+  # :ditto:
+  def self.windows(name : String | Path, *parts : String | Path) : Path
     windows(name).join(parts)
   end
 
@@ -210,7 +225,7 @@ struct Path
       return anchor.to_s
     end
 
-    @name.byte_slice(0, reader.pos + 1)
+    @name.byte_slice(0, reader.pos + reader.current_char_width)
   end
 
   # Returns the parent path of this path.
@@ -528,6 +543,11 @@ struct Path
     @name.byte_at?(1) === ':' && @name.char_at(0).ascii_letter?
   end
 
+  # Converts this path to a native path.
+  def to_native : Path
+    to_kind(Kind.native)
+  end
+
   # Converts this path to a Windows path.
   #
   # ```
@@ -550,7 +570,7 @@ struct Path
   # ```
   #
   # It returns a copy of this instance if it already has POSIX kind. Otherwise
-  # a new instance is created with `Kind::POSIX` and all occurences of
+  # a new instance is created with `Kind::POSIX` and all occurrences of
   # backslash file separators (`\\`) replaced by forward slash (`/`).
   def to_posix : Path
     if posix?
@@ -662,6 +682,7 @@ struct Path
     case home
     when String then home = Path[home]
     when Bool   then home = Path.home
+    when Path # no transformation needed
     end
 
     home.to_kind(@kind).normalize
@@ -712,6 +733,8 @@ struct Path
       # No separators on any side so we need to add one
       bytesize += 1
       add_separator = true
+    else
+      # There's at least on separator in the middle, so nothing to do
     end
 
     new_name = String.new(bytesize) do |buffer|
@@ -761,6 +784,8 @@ struct Path
   # ```
   def join(parts : Enumerable) : Path
     if parts.is_a?(Indexable)
+      return self if parts.empty?
+
       # If it's just a single part we can avoid one allocation of String.build
       return join(parts.first) if parts.size == 1
 
@@ -810,6 +835,8 @@ struct Path
           byte_count -= 1
         when {false, false}
           str << separators[0] unless str.bytesize == 0
+        else
+          # There's one separator, so nothing to do
         end
 
         last_ended_with_separator = ends_with_separator?(part)

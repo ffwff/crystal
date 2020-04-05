@@ -1,4 +1,4 @@
-require "spec"
+require "./spec_helper"
 
 describe "String" do
   describe "[]" do
@@ -1697,6 +1697,11 @@ describe "String" do
     ("こんに%xちは" % 123).should eq("こんに7bちは")
     ("こんに%Xちは" % 123).should eq("こんに7Bちは")
 
+    span = 1.second
+    ("%s" % span).should eq(span.to_s)
+  end
+
+  pending_win32 "does % with floats" do
     ("%f" % 123).should eq("123.000000")
 
     ("%g" % 123).should eq("123")
@@ -1716,9 +1721,6 @@ describe "String" do
     ("%a" % 12345678.45).should eq("0x1.78c29ce666666p+23")
     ("%A" % 12345678.45).should eq("0X1.78C29CE666666P+23")
     ("%100.50g" % 123.45).should eq("                                                  123.4500000000000028421709430404007434844970703125")
-
-    span = 1.second
-    ("%s" % span).should eq(span.to_s)
 
     ("%.2f" % 2.536_f32).should eq("2.54")
     ("%0*.*f" % [10, 2, 2.536_f32]).should eq("0000002.54")
@@ -1979,12 +1981,12 @@ describe "String" do
     it { "hello world\\r\\n".count("\\A").should eq(0) }
     it { "hello world\\r\\n".count("X-\\w").should eq(3) }
     it { "aabbcc".count('a').should eq(2) }
-    it { "aabbcc".count { |c| ['a', 'b'].includes?(c) }.should eq(4) }
+    it { "aabbcc".count(&.in?('a', 'b')).should eq(4) }
   end
 
   describe "squeeze" do
-    it { "aaabbbccc".squeeze { |c| ['a', 'b'].includes?(c) }.should eq("abccc") }
-    it { "aaabbbccc".squeeze { |c| ['a', 'c'].includes?(c) }.should eq("abbbc") }
+    it { "aaabbbccc".squeeze(&.in?('a', 'b')).should eq("abccc") }
+    it { "aaabbbccc".squeeze(&.in?('a', 'c')).should eq("abbbc") }
     it { "a       bbb".squeeze.should eq("a b") }
     it { "a    bbb".squeeze(' ').should eq("a bbb") }
     it { "aaabbbcccddd".squeeze("b-d").should eq("aaabcd") }
@@ -1995,6 +1997,13 @@ describe "String" do
     it { "123".ljust(5).should eq("123  ") }
     it { "12".ljust(7, '-').should eq("12-----") }
     it { "12".ljust(7, 'あ').should eq("12あああああ") }
+
+    describe "to io" do
+      it { with_io_memory { |io| "123".ljust(2, io) }.should eq("123") }
+      it { with_io_memory { |io| "123".ljust(5, io) }.should eq("123  ") }
+      it { with_io_memory { |io| "12".ljust(7, '-', io) }.should eq("12-----") }
+      it { with_io_memory { |io| "12".ljust(7, 'あ', io) }.should eq("12あああああ") }
+    end
   end
 
   describe "rjust" do
@@ -2002,6 +2011,13 @@ describe "String" do
     it { "123".rjust(5).should eq("  123") }
     it { "12".rjust(7, '-').should eq("-----12") }
     it { "12".rjust(7, 'あ').should eq("あああああ12") }
+
+    describe "to io" do
+      it { with_io_memory { |io| "123".rjust(2, io) }.should eq("123") }
+      it { with_io_memory { |io| "123".rjust(5, io) }.should eq("  123") }
+      it { with_io_memory { |io| "12".rjust(7, '-', io) }.should eq("-----12") }
+      it { with_io_memory { |io| "12".rjust(7, 'あ', io) }.should eq("あああああ12") }
+    end
   end
 
   describe "center" do
@@ -2009,6 +2025,13 @@ describe "String" do
     it { "123".center(5).should eq(" 123 ") }
     it { "12".center(7, '-').should eq("--12---") }
     it { "12".center(7, 'あ').should eq("ああ12あああ") }
+
+    describe "to io" do
+      it { with_io_memory { |io| "123".center(2, io) }.should eq("123") }
+      it { with_io_memory { |io| "123".center(5, io) }.should eq(" 123 ") }
+      it { with_io_memory { |io| "12".center(7, '-', io) }.should eq("--12---") }
+      it { with_io_memory { |io| "12".center(7, 'あ', io) }.should eq("ああ12あああ") }
+    end
   end
 
   describe "succ" do
@@ -2066,7 +2089,7 @@ describe "String" do
     sprintf("Hello %d world", [123]).should eq("Hello 123 world")
   end
 
-  it "formats floats (#1562)" do
+  pending_win32 "formats floats (#1562)" do
     sprintf("%12.2f %12.2f %6.2f %.2f" % {2.0, 3.0, 4.0, 5.0}).should eq("        2.00         3.00   4.00 5.00")
   end
 
@@ -2081,6 +2104,8 @@ describe "String" do
         c.should eq('b')
       when 2
         c.should eq('c')
+      else
+        fail "shouldn't happen"
       end
       i += 1
     end.should be_nil
@@ -2133,6 +2158,8 @@ describe "String" do
         b.should eq('b'.ord)
       when 2
         b.should eq('c'.ord)
+      else
+        fail "shouldn't happen"
       end
       i += 1
     end.should be_nil
@@ -2298,7 +2325,7 @@ describe "String" do
       end
     end
 
-    it "applies formatting to %<...> placeholder" do
+    pending_win32 "applies formatting to %<...> placeholder" do
       res = "change %<this>.2f" % {"this" => 23.456}
       res.should eq "change 23.46"
 
@@ -2388,7 +2415,7 @@ describe "String" do
     end
   end
 
-  describe "encode" do
+  pending_win32 describe: "encode" do
     it "encodes" do
       bytes = "Hello".encode("UCS-2LE")
       bytes.to_a.should eq([72, 0, 101, 0, 108, 0, 108, 0, 111, 0])
@@ -2575,4 +2602,10 @@ describe "String" do
       String.interpolation("a", 123, "b", 456, "cde").should eq("a123b456cde")
     end
   end
+end
+
+private def with_io_memory
+  io = IO::Memory.new
+  yield io
+  io.to_s
 end

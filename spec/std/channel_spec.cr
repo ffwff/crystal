@@ -723,17 +723,20 @@ describe "buffered" do
 
   it "blocks when full" do
     ch = Channel(Int32).new(2)
-    freed = false
-    spawn { 2.times { ch.receive }; freed = true }
+    done = false
+    f = spawn { 5.times { |i| ch.send i }; done = true }
 
-    ch.send 1
-    freed.should be_false
+    ch.receive
+    done.should be_false
 
-    ch.send 2
-    freed.should be_false
+    ch.receive
+    done.should be_false
 
-    ch.send 3
-    freed.should be_true
+    # after the third receive, since the buffer is 2
+    # f should be able to exec fully
+    ch.receive
+    wait_until_finished f
+    done.should be_true
   end
 
   it "doesn't block when not full" do
@@ -816,7 +819,7 @@ describe "buffered" do
     ch.receive?.should eq(123)
   end
 
-  it "can send sucessfully without raise" do
+  it "can send successfully without raise" do
     ch = Channel(Int32).new(1)
     raise_flag = false
 

@@ -148,7 +148,7 @@ class Crystal::Doc::Method
         end
       end
     end
-    {type.name, "self"}.includes?(return_type.to_s)
+    return_type.to_s.in?(type.name, "self")
   end
 
   def abstract?
@@ -250,6 +250,8 @@ class Crystal::Doc::Method
     end
 
     case return_type
+    when Nil
+      # Nothing to do
     when ASTNode
       io << " : "
       node_to_html return_type, io, links: links

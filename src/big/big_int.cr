@@ -355,6 +355,13 @@ struct BigInt < Int
     BigInt.new { |mpz| LibGMP.fdiv_q_2exp(mpz, self, other) }
   end
 
+  # :nodoc:
+  #
+  # Because every Int needs this method.
+  def unsafe_shr(count : Int) : self
+    self >> count
+  end
+
   def <<(other : Int) : BigInt
     BigInt.new { |mpz| LibGMP.mul_2exp(mpz, self, other) }
   end
@@ -381,6 +388,10 @@ struct BigInt < Int
 
   def lcm(other : Int) : BigInt
     BigInt.new { |mpz| LibGMP.lcm_ui(mpz, self, other.abs.to_u64) }
+  end
+
+  def bit_length : Int32
+    LibGMP.sizeinbase(self, 2).to_i
   end
 
   # TODO: improve this
@@ -493,10 +504,11 @@ struct BigInt < Int
   end
 
   def to_u32
-    LibGMP.get_ui(self).to_u32
+    to_u64.to_u32
   end
 
   def to_u64
+    raise OverflowError.new if self < 0
     if LibGMP::ULong == UInt64 || (UInt32::MIN <= self <= UInt32::MAX)
       LibGMP.get_ui(self).to_u64
     else

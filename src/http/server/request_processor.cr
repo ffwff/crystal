@@ -1,4 +1,4 @@
-require "../server"
+require "./handler"
 
 class HTTP::Server::RequestProcessor
   # Maximum permitted size of the request line in an HTTP request.
@@ -78,14 +78,16 @@ class HTTP::Server::RequestProcessor
         when ChunkedContent
           # Close the connection if the IO has still bytes to read.
           break unless body.closed?
+        else
+          # Nothing to do
         end
       end
-    rescue ex : Errno
+    rescue IO::Error
       # IO-related error, nothing to do
     ensure
       begin
         input.close if must_close
-      rescue ex : Errno
+      rescue IO::Error
         # IO-related error, nothing to do
       end
     end

@@ -239,8 +239,9 @@ class Crystal::CodeGenVisitor
       final_value_casted = bit_cast final_value, llvm_context.void_pointer
       gep_call_arg = bit_cast gep(call_arg, 0, 0), llvm_context.void_pointer
       size = @abi.size(abi_arg_type.type)
+      size = @program.bits64? ? int64(size) : int32(size)
       align = @abi.align(abi_arg_type.type)
-      memcpy(final_value_casted, gep_call_arg, int32(size), align, int1(0))
+      memcpy(final_value_casted, gep_call_arg, size, align, int1(0))
       call_arg = load final_value
     else
       # Keep same call arg
@@ -429,7 +430,7 @@ class Crystal::CodeGenVisitor
 
       accept body
       inline_call_return_value target_def, body
-      return true
+      true
     when Var
       if body.name == "self"
         return true unless @needs_value
@@ -437,16 +438,18 @@ class Crystal::CodeGenVisitor
         @last = self_type.passed_as_self? ? call_args.first : type_id(self_type)
         inline_call_return_value target_def, body
         return true
+      else
+        false
       end
     when InstanceVar
       return true unless @needs_value
 
       read_instance_var(body.type, self_type, body.name, call_args.first)
       inline_call_return_value target_def, body
-      return true
+      true
+    else
+      false
     end
-
-    false
   end
 
   def inline_call_return_value(target_def, body)
@@ -500,8 +503,9 @@ class Crystal::CodeGenVisitor
             final_value = alloca abi_return.type
             final_value_casted = bit_cast final_value, llvm_context.void_pointer
             size = @abi.size(abi_return.type)
+            size = @program.@program.bits64? ? int64(size) : int32(size)
             align = @abi.align(abi_return.type)
-            memcpy(final_value_casted, cast2, int32(size), align, int1(0))
+            memcpy(final_value_casted, cast2, size, align, int1(0))
             @last = final_value
           end
         when LLVM::ABI::ArgKind::Indirect
@@ -522,6 +526,8 @@ class Crystal::CodeGenVisitor
         else
           @last = llvm_nil
         end
+      else
+        # go on
       end
     end
 

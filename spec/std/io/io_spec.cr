@@ -1,5 +1,7 @@
 require "../spec_helper"
-require "big"
+{% unless flag?(:win32) %}
+  require "big"
+{% end %}
 require "base64"
 
 # This is a non-optimized version of IO::Memory so we can test
@@ -80,7 +82,7 @@ end
 
 describe IO do
   describe "partial read" do
-    it "doesn't block on first read.  blocks on 2nd read" do
+    pending_win32 "doesn't block on first read.  blocks on 2nd read" do
       IO.pipe do |read, write|
         write.puts "hello"
         slice = Bytes.new 1024
@@ -88,7 +90,7 @@ describe IO do
         read.read_timeout = 1
         read.read(slice).should eq(6)
 
-        expect_raises(IO::Timeout) do
+        expect_raises(IO::TimeoutError) do
           read.read_timeout = 0.0000001
           read.read(slice)
         end
@@ -386,6 +388,14 @@ describe IO do
 
       str.read_fully?(slice).should be_nil
     end
+
+    it "raises if trying to read to an IO not opened for reading" do
+      IO.pipe do |r, w|
+        expect_raises(IO::Error, "File not open for reading") do
+          w.gets
+        end
+      end
+    end
   end
 
   describe "write operations" do
@@ -473,9 +483,20 @@ describe IO do
       io.skip_to_end
       io.read_byte.should be_nil
     end
+
+    it "raises if trying to write to an IO not opened for writing" do
+      IO.pipe do |r, w|
+        # unless sync is used the flush on close triggers the exception again
+        r.sync = true
+
+        expect_raises(IO::Error, "File not open for writing") do
+          r << "hello"
+        end
+      end
+    end
   end
 
-  describe "encoding" do
+  pending_win32 describe: "encoding" do
     describe "decode" do
       it "gets_to_end" do
         str = "Hello world" * 200
@@ -822,54 +843,56 @@ describe IO do
         io.encoding.should eq("UTF-16LE")
       end
     end
+  end
 
-    describe "#close" do
-      it "aborts 'read' in a different thread" do
-        ch = Channel(Symbol).new(1)
+  pending_win32 describe: "#close" do
+    it "aborts 'read' in a different thread" do
+      ch = Channel(Symbol).new(1)
 
-        IO.pipe do |read, write|
-          spawn do
-            ch.send :start
-            read.gets
-          rescue
-            ch.send :end
-          end
-
-          delay(1) { ch.send :timeout }
-
-          ch.receive.should eq(:start)
-          read.close
-          ch.receive.should eq(:end)
+      IO.pipe do |read, write|
+        f = spawn do
+          ch.send :start
+          read.gets
+        rescue
+          ch.send :end
         end
+
+        delay(1) { ch.send :timeout }
+
+        ch.receive.should eq(:start)
+        wait_until_blocked f
+
+        read.close
+        ch.receive.should eq(:end)
       end
+    end
 
-      it "aborts 'write' in a different thread" do
-        ch = Channel(Symbol).new(1)
+    it "aborts 'write' in a different thread" do
+      ch = Channel(Symbol).new(1)
 
-        IO.pipe do |read, write|
-          f = spawn do
-            ch.send :start
-            loop do
-              write.puts "some line"
-            end
-          rescue
-            ch.send :end
+      IO.pipe do |read, write|
+        f = spawn do
+          ch.send :start
+          loop do
+            write.puts "some line"
           end
-
-          delay(1) { ch.send :timeout }
-
-          ch.receive.should eq(:start)
-          while f.running?
-            # Wait until the fiber is blocked
-            Fiber.yield
-          end
-          write.close
-          ch.receive.should eq(:end)
+        rescue
+          ch.send :end
         end
+
+        delay(1) { ch.send :timeout }
+
+        ch.receive.should eq(:start)
+        wait_until_blocked f
+
+        write.close
+        ch.receive.should eq(:end)
       end
     end
   end
 
-  typeof(STDIN.cooked { })
-  typeof(STDIN.cooked!)
+  {% unless flag?(:win32) %}
+    typeof(STDIN.cooked { })
+    typeof(STDIN.cooked!)
+  {% end %}
 end

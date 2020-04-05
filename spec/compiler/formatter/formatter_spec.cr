@@ -1600,4 +1600,14 @@ describe Crystal::Formatter do
       baz
     end
     CODE
+
+  assert_format "a.!"
+
+  assert_format <<-CODE
+    ->{
+      # first comment
+      puts "hi"
+      # second comment
+    }
+    CODE
 end
